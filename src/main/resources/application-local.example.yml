@@ -1,0 +1,6 @@
+# Copy to application-local.yml and fill in (application-local.yml is gitignored).
+spring:
+  datasource:
+    url: jdbc:postgresql://YOUR_HOST/neondb?sslmode=require&channelBinding=require
+    username: neondb_owner
+    password: YOUR_PASSWORD

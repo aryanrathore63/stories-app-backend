@@ -1,0 +1,23 @@
+package com.abhishek.stories_app.config;
+
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration
+@EnableConfigurationProperties({
+	JwtProperties.class,
+	CorsProperties.class,
+	RateLimitProperties.class,
+	RefreshTokenProperties.class,
+	ProxyProperties.class
+})
+public class AppConfig {
+
+	@Bean
+	PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder(12);
+	}
+}

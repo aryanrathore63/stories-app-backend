@@ -1,0 +1,111 @@
+spring:
+  application:
+    name: stories-app
+  profiles:
+    # `local` loads optional application-local.yml (gitignored) for datasource secrets.
+    active: ${SPRING_PROFILES_ACTIVE:postgres,local}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+app:
+  jwt:
+    # Required: generate at least 32 random bytes and inject it at runtime.
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
+  refresh-token:
+    expiration-days: ${REFRESH_TOKEN_EXPIRATION_DAYS:14}
+    cookie-name: ${REFRESH_TOKEN_COOKIE_NAME:stories_refresh}
+    cookie-path: ${REFRESH_TOKEN_COOKIE_PATH:/}
+    # Secure by default; the dev profile explicitly opts out for local HTTP.
+    secure: ${REFRESH_TOKEN_COOKIE_SECURE:true}
+    same-site: ${REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    max-buckets: ${RATE_LIMIT_MAX_BUCKETS:50000}
+    bucket-ttl: ${RATE_LIMIT_BUCKET_TTL:15m}
+    rules:
+      - name: auth-login
+        path-pattern: /auth/login
+        methods: [POST]
+        capacity: 10
+        refill-amount: 10
+        window: 1m
+      - name: auth-register
+        path-pattern: /auth/register
+        methods: [POST]
+        capacity: 5
+        refill-amount: 5
+        window: 1m
+      - name: auth-refresh
+        path-pattern: /auth/refresh
+        methods: [POST]
+        capacity: 30
+        refill-amount: 30
+        window: 1m
+      - name: narrate
+        path-pattern: /stories/*/narrate
+        methods: [POST]
+        capacity: 20
+        refill-amount: 20
+        window: 1h
+      - name: global
+        path-pattern: /**
+        methods: []
+        capacity: 200
+        refill-amount: 200
+        window: 1m
+
+  proxy:
+    # Forwarded headers are accepted only from explicitly trusted immediate peers.
+    trust-forwarded-headers: ${TRUST_FORWARDED_HEADERS:false}
+    trusted-proxies: ${TRUSTED_PROXY_IPS:}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:h2:mem:stories;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+app:
+  refresh-token:
+    secure: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    # Prefer secrets in application-local.yml (see application-local.example.yml).
+    # Or set SPRING_DATASOURCE_* / DATABASE_* env vars (omit `local` profile if you rely only on env).
+    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DATABASE_USERNAME}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DATABASE_PASSWORD:}}
+    driver-class-name: org.postgresql.Driver
+
+---
+spring:
+  config:
+    activate:
+      on-profile: mysql
+  datasource:
+    url: ${DATABASE_URL:jdbc:mysql://localhost:3306/stories?createDatabaseIfNotExist=true}
+    username: ${DATABASE_USERNAME:root}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver

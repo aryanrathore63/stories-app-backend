@@ -1,0 +1,73 @@
+package com.abhishek.stories_app.security;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.abhishek.stories_app.dto.ErrorResponse;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+@Component
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+	private static final String BEARER = "Bearer ";
+
+	private static final ObjectMapper JSON = new ObjectMapper();
+
+	private final JwtUtil jwtUtil;
+	private final UserDetailsServiceImpl userDetailsService;
+
+	@Override
+	protected void doFilterInternal(
+			@NonNull HttpServletRequest request,
+			@NonNull HttpServletResponse response,
+			@NonNull FilterChain filterChain)
+			throws ServletException, IOException {
+		String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+		if (header == null || !header.startsWith(BEARER)) {
+			filterChain.doFilter(request, response);
+			return;
+		}
+		String token = header.substring(BEARER.length()).trim();
+		if (token.isEmpty()) {
+			filterChain.doFilter(request, response);
+			return;
+		}
+		if (!jwtUtil.validate(token)) {
+			writeUnauthorized(response, "Invalid or expired token");
+			return;
+		}
+		try {
+			Long userId = jwtUtil.extractUserId(token);
+			var userDetails = userDetailsService.loadUserById(userId);
+			var auth =
+					new UsernamePasswordAuthenticationToken(
+							userDetails, null, userDetails.getAuthorities());
+			auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+			SecurityContextHolder.getContext().setAuthentication(auth);
+		} catch (Exception e) {
+			writeUnauthorized(response, "Invalid or expired token");
+			return;
+		}
+		filterChain.doFilter(request, response);
+	}
+
+	private void writeUnauthorized(HttpServletResponse response, String message)
+			throws IOException {
+		response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		var body = ErrorResponse.of(message, 401);
+		response.getWriter().write(JSON.writeValueAsString(body));
+	}
+}
